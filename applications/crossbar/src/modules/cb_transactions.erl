@@ -9,12 +9,12 @@
 -module(cb_transactions).
 
 -export([init/0
-         ,allowed_methods/0, allowed_methods/1
-         ,resource_exists/0, resource_exists/1
-         ,validate/1, validate/2
-         ,to_csv/1
-         ,put/2
-         ,delete/2
+        ,allowed_methods/0, allowed_methods/1
+        ,resource_exists/0, resource_exists/1
+        ,validate/1, validate/2
+        ,to_csv/1
+        ,put/2
+        ,delete/2
         ]).
 
 -include("crossbar.hrl").
@@ -49,22 +49,22 @@ init() ->
 
 -spec to_csv(payload()) -> payload().
 to_csv({Req, Context}) ->
-    JObjs = flatten(cb_context:resp_data(Context), []),
+    JObjs = flatten(cb_context:resp_data(Context)),
     {Req, cb_context:set_resp_data(Context, JObjs)}.
 
--spec flatten(kz_json:objects(), kz_json:objects()) -> kz_json:objects().
-flatten([], Results) ->
-    wht_util:collapse_call_transactions(Results);
-flatten([JObj|JObjs], Results) ->
-    Metadata = kz_json:get_ne_value(<<"metadata">>, JObj),
-    case kz_json:is_json_object(Metadata) of
-        'true' ->
-            Props = kz_json:to_proplist(Metadata),
-            flatten(JObjs, [kz_json:set_values(Props, JObj)|Results]);
-        'false' ->
-            flatten(JObjs, [JObj|Results])
-    end;
-flatten(Else, _) -> Else.
+-spec flatten(kz_json:objects()) -> kz_json:objects().
+flatten(JObjs) when is_list(JObjs) ->
+    wht_util:collapse_call_transactions(
+      [flatten_result(JObj) || JObj <- JObjs]
+     );
+flatten(Else) -> Else.
+
+-spec flatten_result(kz_json:object()) -> kz_json:object().
+flatten_result(JObj) ->
+    case kz_json:get_ne_json_value(<<"metadata">>, JObj) of
+        'undefined' -> JObj;
+        Metadata -> kz_json:merge_jobjs(Metadata, JObj)
+    end.
 
 %%--------------------------------------------------------------------
 %% @public
