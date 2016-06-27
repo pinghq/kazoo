@@ -120,7 +120,6 @@ validate(Context) ->
 validate(Context, PathToken) ->
     validate_transaction(Context, PathToken, cb_context:req_verb(Context)).
 
-
 %%--------------------------------------------------------------------
 %% @public
 %% @doc
@@ -212,16 +211,12 @@ create_credit_tansaction(CreditType, Context) ->
     Reason = kz_json:get_value(<<"reason">>, JObj, <<"manual_addition">>),
     Description = kz_json:get_value(<<"description">>, JObj),
 
-    Routines = [fun(Tr) -> kz_transaction:set_reason(Reason, Tr) end
-                ,fun(Tr) -> kz_transaction:set_description(Description, Tr) end
-                ,fun(Tr) -> kz_transaction:set_metadata(Meta, Tr) end
-                ,fun kz_transaction:CreditType/1
+    Routines = [{fun kz_transaction:set_reason/2, Reason}
+               ,{fun kz_transaction:set_description/2, Description}
+               ,{fun kz_transaction:set_metadata/2, Meta}
+               ,fun kz_transaction:CreditType/1
                ],
-    lists:foldl(
-      fun(F, Tr) -> F(Tr) end
-      ,kz_transaction:credit(AccountId, Units)
-      ,Routines
-     ).
+    kz_util:foldf(kz_transaction:credit(AccountId, Units), Routines).
 
 %%--------------------------------------------------------------------
 %% @public
@@ -293,16 +288,12 @@ create_debit_tansaction(Context) ->
     Reason = kz_json:get_value(<<"reason">>, JObj, <<"admin_discretion">>),
     Description = kz_json:get_value(<<"description">>, JObj),
 
-    Routines = [fun(Tr) -> kz_transaction:set_reason(Reason, Tr) end
-                ,fun(Tr) -> kz_transaction:set_description(Description, Tr) end
-                ,fun(Tr) -> kz_transaction:set_metadata(Meta, Tr) end
-                ,fun kz_transaction:save/1
+    Routines = [{fun kz_transaction:set_reason/2, Reason}
+               ,{fun kz_transaction:set_description/2, Description}
+               ,{fun kz_transaction:set_metadata/2, Meta}
+               ,fun kz_transaction:save/1
                ],
-    lists:foldl(
-      fun(F, Tr) -> F(Tr) end
-      ,kz_transaction:debit(AccountId, Units)
-      ,Routines
-     ).
+    kz_util:folde(kz_transaction:debit(AccountId, Units), Routines).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -527,7 +518,7 @@ filter_subscription(BSubscription) ->
     Routines = [fun clean_braintree_subscription/1
                 ,fun correct_date_braintree_subscription/1
                ],
-    lists:foldl(fun(F, BSub) -> F(BSub) end, BSubscription, Routines).
+    kz_util:foldf(BSubscription, Routines).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -568,7 +559,8 @@ correct_date_braintree_subscription(BSubscription) ->
            ],
     lists:foldl(fun correct_date_braintree_subscription_fold/2, BSubscription, Keys).
 
--spec correct_date_braintree_subscription_fold(ne_binary(), kz_json:object()) -> kz_json:object().
+-spec correct_date_braintree_subscription_fold(ne_binary(), kz_json:object()) ->
+                                                      kz_json:object().
 correct_date_braintree_subscription_fold(Key, BSub) ->
     case kz_json:get_value(Key, BSub, 'null') of
         'null' -> BSub;
@@ -585,15 +577,15 @@ correct_date_braintree_subscription_fold(Key, BSub) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec send_resp({'ok', any()} | {'error', any()}, cb_context:context()) -> cb_context:context().
+-spec send_resp({'ok', any()} | {'error', any()}, cb_context:context()) ->
+                       cb_context:context().
 send_resp({'ok', JObj}, Context) ->
     cb_context:setters(Context
-                       ,[{fun cb_context:set_resp_status/2, 'success'}
-                         ,{fun cb_context:set_resp_data/2, JObj}
-                        ]);
+                      ,[{fun cb_context:set_resp_status/2, 'success'}
+                       ,{fun cb_context:set_resp_data/2, JObj}
+                       ]);
 send_resp({'error', Details}, Context) ->
-    cb_context:add_system_error(
-      'bad_identifier'
-      ,kz_json:from_list([{<<"cause">>, Details}])
-      ,Context
-     ).
+    cb_context:add_system_error('bad_identifier'
+                               ,kz_json:from_list([{<<"cause">>, Details}])
+                               ,Context
+                               ).
