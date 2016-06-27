@@ -104,21 +104,7 @@
 -define(KEY_ACCEPT_CHARGES, <<"accept_charges">>).
 
 -type context() :: #cb_context{}.
--type setter_fun_1() :: fun((context()) -> context()).
--type setter_fun_2() :: fun((context(), any()) -> context()).
--type setter_fun_3() :: fun((context(), any(), any()) -> context()).
--type setter_fun() :: setter_fun_1() | setter_fun_2() | setter_fun_3().
--export_type([context/0
-              ,setter_fun/0
-              ,setter_fun_1/0
-              ,setter_fun_2/0
-              ,setter_fun_3/0
-             ]).
-
--type setter_kv() :: setter_fun_1() |
-                     {setter_fun_2(), any()} |
-                     {setter_fun_3(), any(), any()}.
--type setters() :: [setter_kv()].
+-export_type([context/0]).
 
 -spec new() -> context().
 new() -> #cb_context{}.
@@ -262,15 +248,10 @@ resp_error_code(#cb_context{resp_error_code=Code}) -> Code.
 resp_error_msg(#cb_context{resp_error_msg=Msg}) -> Msg.
 
 %% Setters
--spec setters(context(), setters()) -> context().
+-spec setters(context(), kz_util:foldf_funs(context())) -> context().
 setters(#cb_context{}=Context, []) -> Context;
 setters(#cb_context{}=Context, [_|_]=Setters) ->
-    lists:foldl(fun setters_fold/2, Context, Setters).
-
--spec setters_fold(setter_kv(), context()) -> context().
-setters_fold({F, V}, C) -> F(C, V);
-setters_fold({F, K, V}, C) -> F(C, K, V);
-setters_fold(F, C) when is_function(F, 1) -> F(C).
+    kz_util:foldf(Context, Setters).
 
 -spec set_account_id(context(), ne_binary()) -> context().
 -spec set_account_db(context(), ne_binary()) -> context().
@@ -454,7 +435,7 @@ set_profile_id(#cb_context{}=Context, Value) ->
     Context#cb_context{profile_id = Value}.
 
 
--spec update_doc(context(), setter_fun_1()) -> context().
+-spec update_doc(context(), kz_util:foldf_fun(context())) -> context().
 update_doc(#cb_context{doc=Doc}=Context, Updater) ->
     Context#cb_context{doc=Updater(Doc)}.
 
