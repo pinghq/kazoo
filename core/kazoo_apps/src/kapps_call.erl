@@ -484,12 +484,7 @@ is_call(_) -> 'false'.
 
 -spec exec(exec_funs(), call()) -> call().
 exec(Funs, #kapps_call{}=Call) ->
-    lists:foldl(fun exec_fold/2, Call, Funs).
-
--spec exec_fold(exec_fun(), call()) -> call().
-exec_fold({F, K, V}, C) when is_function(F, 3) -> F(K, V, C);
-exec_fold({F, V}, C) when is_function(F, 2) -> F(V, C);
-exec_fold(F, C) when is_function(F, 1) -> F(C).
+    kz_util:folde(Call, Funs).
 
 -spec set_application_name(ne_binary(), call()) -> call().
 set_application_name(AppName, #kapps_call{}=Call) when is_binary(AppName) ->
