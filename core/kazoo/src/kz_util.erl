@@ -105,6 +105,7 @@
          ,spawn/1, spawn/2
          ,spawn_link/1, spawn_link/2
          ,spawn_monitor/2
+         ,foldf/2, folde/2
          ,set_startup/0, startup/0
         ]).
 -export([get_event_type/1]).
@@ -140,6 +141,10 @@
 -export([application_version/1]).
 
 -export([iolist_join/2]).
+
+-export_type([foldf_funs/1, foldf_fun/1
+             ,folde_funs/1, folde_fun/1
+             ]).
 
 -include_lib("kernel/include/inet.hrl").
 
@@ -750,7 +755,10 @@ randomize_list(1, List) -> randomize_list(List);
 randomize_list(T, List) ->
     lists:foldl(fun(_E, Acc) ->
                         randomize_list(Acc)
-                end, randomize_list(List), lists:seq(1, (T - 1))).
+                end
+               ,randomize_list(List)
+               ,lists:seq(1, (T - 1))
+               ).
 
 %%--------------------------------------------------------------------
 %% @public
@@ -816,6 +824,40 @@ spawn_monitor(Fun, Arguments) ->
                                  erlang:apply(Fun, Arguments)
                          end).
 
+%% apply functions with Acc at front of args list
+-type foldf_fun_1(Acc) :: fun((Acc) -> Acc).
+-type foldf_fun_2(Acc) :: {fun((Acc, Key) -> Acc), Key}.
+-type foldf_fun_3(Acc) :: {fun((Acc, Key, Value) -> Acc), Key, Value}.
+-type foldf_fun(Acc) :: foldf_fun_1(Acc) |
+                        foldf_fun_2(Acc) |
+                        foldf_fun_3(Acc).
+-type foldf_funs(Acc) :: [foldf_fun(Acc)].
+-spec foldf(Acc, foldf_funs(Acc)) -> Acc.
+foldf(Acc, L) ->
+    lists:foldl(fun foldf_acc/2, Acc, L).
+
+-spec foldf_acc(foldf_fun(Acc), Acc) -> Acc.
+foldf_acc({F, K, V}, Acc) -> F(Acc, K, V);
+foldf_acc({F, V}, Acc) -> F(Acc, V);
+foldf_acc(F, Acc) when is_function(F, 1) -> F(Acc).
+
+%% apply functions with Acc at end of args list
+-type folde_fun_1(Acc) :: fun((Acc) -> Acc).
+-type folde_fun_2(Acc) :: {fun((Acc, Value) -> Acc), Value}.
+-type folde_fun_3(Acc) :: {fun((Acc, Key, Value) -> Acc), Key, Value}.
+-type folde_fun(Acc) :: folde_fun_1(Acc) |
+                        folde_fun_2(Acc) |
+                        folde_fun_3(Acc).
+-type folde_funs(Acc) :: [folde_fun(Acc)].
+
+-spec folde(Acc, folde_funs(Acc)) -> Acc.
+folde(Acc, L) ->
+    lists:foldl(fun folde_acc/2, Acc, L).
+
+-spec folde_acc(folde_fun(Acc), Acc) -> Acc.
+folde_acc({F, K, V}, Acc) -> F(K, V, Acc);
+folde_acc({F, V}, Acc) -> F(V, Acc);
+folde_acc(F, Acc) when is_function(F, 1) -> F(Acc).
 
 -spec set_startup() -> api_seconds().
 set_startup() ->
