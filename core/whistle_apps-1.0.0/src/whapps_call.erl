@@ -687,6 +687,7 @@ set_request(Request, #whapps_call{}=Call) when is_binary(Request) ->
 -ifdef(TEST).
 to_e164(Number) -> Number.
 -else.
+to_e164(<<"*", _/binary>>=Number) -> Number;
 to_e164(Number) ->
     wnm_util:to_e164(Number).
 -endif.

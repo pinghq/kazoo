@@ -22,7 +22,7 @@
 handle(Data, Call) ->
     CaptureGroup = whapps_call:kvs_fetch('cf_capture_group', Call),
     AccountId = whapps_call:account_id(Call),
-    case is_binary(CaptureGroup) andalso cf_util:lookup_callflow(CaptureGroup, AccountId) of
+    case is_binary(CaptureGroup) andalso cf_flow:lookup(CaptureGroup, AccountId) of
         {'ok', Flow, 'false'} ->
             JObj = case wh_json:is_true(<<"barge_calls">>, Data) of
                        'false' -> wh_json:from_list([{<<"Auto-Answer-Suppress-Notify">>, <<"true">>}]);

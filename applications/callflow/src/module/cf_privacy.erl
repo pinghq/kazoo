@@ -14,7 +14,7 @@
 handle(Data, Call) ->
     CaptureGroup = whapps_call:kvs_fetch('cf_capture_group', Call),
     AccountId = whapps_call:account_id(Call),
-    case cf_util:lookup_callflow(CaptureGroup, AccountId) of
+    case cf_flow:lookup(CaptureGroup, AccountId) of
         {'ok', CallFlow, _} ->
             Mode = wh_json:get_value(<<"mode">>, Data),
             whapps_call_command:privacy(Mode, Call),

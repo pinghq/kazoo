@@ -61,7 +61,7 @@ init([Data, Call]) ->
     whapps_call_command:answer(Call),
     lager:info("Camping feature started"),
     Number = whapps_call:kvs_fetch('cf_capture_group', Call),
-    CF = cf_util:lookup_callflow(Number, whapps_call:account_id(Call)),
+    CF = cf_flow:lookup(Number, whapps_call:account_id(Call)),
     case CF of
         {'ok', Callflow, IsNoMatch} -> just(#state{callflow = Callflow
                                                    ,is_no_match = IsNoMatch

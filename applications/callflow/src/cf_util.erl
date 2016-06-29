@@ -50,7 +50,6 @@
 -include_lib("whistle/src/wh_json.hrl").
 
 -define(OWNER_KEY(Db, User), {?MODULE, 'owner_id', Db, User}).
--define(CF_FLOW_CACHE_KEY(Number, Db), {'cf_flow', Number, Db}).
 -define(SIP_USER_OWNERS_KEY(Db, User), {?MODULE, 'sip_user_owners', Db, User}).
 -define(SIP_ENDPOINT_ID_KEY(Db, User), {?MODULE, 'sip_endpoint_id', Db, User}).
 -define(PARKING_PRESENCE_KEY(Db, Request), {?MODULE, 'parking_callflow', Db, Request}).
@@ -104,7 +103,7 @@ maybe_presence_parking_slot_resp(Username, Realm, AccountDb) ->
 -spec maybe_presence_parking_flow(ne_binary(), ne_binary(), ne_binary()) -> 'ok' | 'not_found'.
 maybe_presence_parking_flow(Username, Realm, AccountDb) ->
     AccountId = wh_util:format_account_id(AccountDb, 'raw'),
-    _ = lookup_callflow(Username, AccountId),
+    _ = cf_flow:lookup(Username, AccountId),
     case wh_cache:fetch_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Username, AccountDb)) of
         {'error', 'not_found'} -> 'not_found';
         {'ok', Flow} ->
@@ -609,131 +608,6 @@ get_account_realm(AccountId, Default) ->
     case wh_util:get_account_realm(AccountId) of
         'undefined' -> Default;
         Else -> Else
-    end.
-
-%%-----------------------------------------------------------------------------
-%% @public
-%% @doc
-%% lookup the callflow based on the requested number in the account
-%% @end
-%%-----------------------------------------------------------------------------
--type lookup_callflow_ret() :: {'ok', wh_json:object(), boolean()} |
-                               {'error', any()}.
-
--spec lookup_callflow(whapps_call:call()) -> lookup_callflow_ret().
-lookup_callflow(Call) ->
-    lookup_callflow(whapps_call:request_user(Call), whapps_call:account_id(Call)).
-
--spec lookup_callflow(ne_binary(), ne_binary()) -> lookup_callflow_ret().
-lookup_callflow(Number, AccountId) when not is_binary(Number) ->
-    lookup_callflow(wh_util:to_binary(Number), AccountId);
-lookup_callflow(<<>>, _) -> {'error', 'invalid_number'};
-lookup_callflow(Number, AccountId) ->
-    Db = wh_util:format_account_id(AccountId, 'encoded'),
-    do_lookup_callflow(Number, Db).
-
-do_lookup_callflow(Number, Db) ->
-    lager:info("searching for callflow in ~s to satisfy '~s'", [Db, Number]),
-    Options = [{'key', Number}, 'include_docs'],
-    case couch_mgr:get_results(Db, ?LIST_BY_NUMBER, Options) of
-        {'error', _}=E -> E;
-        {'ok', []} when Number =/= ?NO_MATCH_CF ->
-            case lookup_callflow_patterns(Number, Db) of
-                {'error', _} -> maybe_use_nomatch(Number, Db);
-                {'ok', {Flow, Capture}} ->
-                    F = wh_json:set_value(<<"capture_group">>, Capture, Flow),
-                    wh_cache:store_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, Db), F),
-                    {'ok', F, 'false'}
-            end;
-        {'ok', []} -> {'error', 'not_found'};
-        {'ok', [JObj]} ->
-            Flow = wh_json:get_value(<<"doc">>, JObj),
-            wh_cache:store_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, Db), Flow),
-            {'ok', Flow, Number =:= ?NO_MATCH_CF};
-        {'ok', [JObj | _Rest]} ->
-            lager:info("lookup resulted in more than one result, using the first"),
-            Flow = wh_json:get_value(<<"doc">>, JObj),
-            wh_cache:store_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, Db), Flow),
-            {'ok', Flow, Number =:= ?NO_MATCH_CF}
-    end.
-
-%% only route to nomatch when Number is all digits and/or +
-maybe_use_nomatch(<<"+", Number/binary>>, Db) ->
-    maybe_use_nomatch(Number, Db);
-maybe_use_nomatch(Number, Db) ->
-    case lists:all(fun is_digit/1, wh_util:to_list(Number)) of
-        'true' -> do_lookup_callflow(?NO_MATCH_CF, Db);
-        'false' ->
-            lager:info("can't use no_match: number not all digits: ~s", [Number]),
-            {'error', 'not_found'}
-    end.
-
-is_digit(X) when X >= $0, X =< $9 -> 'true';
-is_digit(_) -> 'false'.
-
-%%-----------------------------------------------------------------------------
-%% @private
-%% @doc
-%% send a route response for a route request that can be fulfilled by this
-%% process
-%% @end
-%%-----------------------------------------------------------------------------
--spec lookup_callflow_patterns(ne_binary(), ne_binary()) ->
-                                      {'ok', {wh_json:object(), api_binary()}} |
-                                      {'error', any()}.
-lookup_callflow_patterns(Number, Db) ->
-    lager:info("lookup callflow patterns for ~s in ~s", [Number, Db]),
-    case couch_mgr:get_results(Db, ?LIST_BY_PATTERN, ['include_docs']) of
-        {'ok', Patterns} ->
-            case test_callflow_patterns(Patterns, Number, {'undefined', <<>>}) of
-                {'undefined', <<>>} -> {'error', 'not_found'};
-                {Flow, <<>>} -> {'ok', {Flow, 'undefined'}};
-                Match -> {'ok', Match}
-            end;
-        {'error', _}=E ->
-            E
-    end.
-
-%%-----------------------------------------------------------------------------
-%% @private
-%% @doc
-%% @end
-%%-----------------------------------------------------------------------------
--spec test_callflow_patterns(wh_json:objects(), ne_binary()
-                             ,{'undefined', <<>>} | {wh_json:object(), ne_binary()}
-                            ) ->
-                                    {'undefined', <<>>} |
-                                    {wh_json:object(), ne_binary()}.
-test_callflow_patterns([], _, Result) ->
-    Result;
-test_callflow_patterns([Pattern|T], Number, {_, Capture}=Result) ->
-    Regex = wh_json:get_value(<<"key">>, Pattern),
-    case re:run(Number, Regex) of
-        {'match', [{Start,End}]} ->
-            Flow = wh_json:get_value(<<"doc">>, Pattern),
-            case binary:part(Number, Start, End) of
-                <<>> when Capture =:= <<>> ->
-                    test_callflow_patterns(T, Number, {Flow, <<>>});
-                Match when size(Match) > size(Capture); size(Match) =:= 0 ->
-                    test_callflow_patterns(T, Number, {Flow, Match});
-                _ ->
-                    test_callflow_patterns(T, Number, Result)
-            end;
-        {'match', CaptureGroups} ->
-            %% find the largest matching group if present by sorting the position of the
-            %% matching groups by list, reverse so head is largest, then take the head of the list
-            {Start, End} = hd(lists:reverse(lists:keysort(2, tl(CaptureGroups)))),
-            Flow = wh_json:get_value(<<"doc">>, Pattern),
-            case binary:part(Number, Start, End) of
-                <<>> when Capture =:= <<>> ->
-                    test_callflow_patterns(T, Number, {Flow, <<>>});
-                Match when size(Match) > size(Capture) ->
-                    test_callflow_patterns(T, Number, {Flow, Match});
-                _ ->
-                    test_callflow_patterns(T, Number, Result)
-            end;
-        _ ->
-            test_callflow_patterns(T, Number, Result)
     end.
 
 %%--------------------------------------------------------------------

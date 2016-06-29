@@ -94,7 +94,7 @@ build_flow_data(_Call, Data, _AuthorizingType) ->
 -spec get_target_for_extension(ne_binary(), whapps_call:call()) ->
                                       target().
 get_target_for_extension(Exten, Call) ->
-    case cf_util:lookup_callflow(Exten, whapps_call:account_id(Call)) of
+    case cf_flow:lookup(Exten, whapps_call:account_id(Call)) of
         {'ok', Callflow, _} ->
             lookup_endpoint(wh_json:get_value(<<"flow">>, Callflow));
         {'error', _} -> 'error'

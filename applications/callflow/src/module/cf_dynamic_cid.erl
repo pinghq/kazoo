@@ -104,6 +104,7 @@ handle_manual(Data, Call) ->
 %%--------------------------------------------------------------------
 -spec handle_list(wh_json:object(), whapps_call:call()) -> 'ok'.
 handle_list(Data, Call) ->
+<<<<<<< HEAD
     CallerIdNumber = whapps_call:caller_id_number(Call),
     lager:debug("callerid number before this module: ~s ", [CallerIdNumber]),
 
@@ -129,7 +130,7 @@ handle_list(Data, Call) ->
 
 -spec maybe_route_to_callflow(wh_json:object(), whapps_call:call(), ne_binary()) -> 'ok'.
 maybe_route_to_callflow(Data, Call, Number) ->
-    case cf_util:lookup_callflow(Number, whapps_call:account_id(Call)) of
+    case cf_flow:lookup(Number, whapps_call:account_id(Call)) of
         {'ok', Flow, 'true'} ->
             lager:info("callflow ~s satisfies request", [wh_json:get_value(<<"_id">>, Flow)]),
             Updates = [{fun whapps_call:set_request/2
@@ -258,7 +259,7 @@ get_list_entry(Data, Call) ->
 
     case couch_mgr:open_cache_doc(AccountDb, ListId) of
         {'ok', ListJObj} ->
-            {CIDKey, DestNumber} = find_key_and_dest(ListJObj, Call),
+            {CIDKey, DestNumber} = find_key_and_dest(ListJObj, Data, Call),
             lager:debug("CIDKey ~p to lookup in match list document", [CIDKey]),
             NewCallerId = get_new_caller_id(CIDKey, ListJObj, Call),
             lager:info("new caller id: ~p",  [NewCallerId]),
@@ -266,6 +267,17 @@ get_list_entry(Data, Call) ->
         {'error', _Reason}=E ->
             lager:info("failed to load match list document ~s: ~p", [ListId, _Reason]),
             E
+    end.
+
+-spec find_key_and_dest(wh_json:object(), wh_json:object(), whapps_call:call()) -> {ne_binary(), ne_binary()}.
+find_key_and_dest(ListJObj, Data, Call) ->
+    case wh_json:get_value(<<"idx_name">>, Data) of
+        'undefined' -> find_key_and_dest(ListJObj, Call);
+        Idx ->
+            Groups = whapps_call:kvs_fetch('cf_capture_groups', Call),
+            CIDKey = wh_json:get_value(Idx, Groups),
+            Dest = whapps_call:kvs_fetch('cf_capture_group', Call),
+            {CIDKey, Dest}
     end.
 
 -spec find_key_and_dest(wh_json:object(), whapps_call:call()) -> {ne_binary(), ne_binary()}.
