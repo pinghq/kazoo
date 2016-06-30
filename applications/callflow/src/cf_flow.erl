@@ -32,9 +32,9 @@
 %%-----------------------------------------------------------------------------
 -type lookup_ret() :: {'ok', wh_json:object(), boolean()} | {'error', any()}.
 
--spec lookup(kapps_call:call()) -> lookup_ret().
+-spec lookup(whapps_call:call()) -> lookup_ret().
 lookup(Call) ->
-    lookup(kapps_call:request_user(Call), kapps_call:account_id(Call)).
+    lookup(whapps_call:request_user(Call), whapps_call:account_id(Call)).
 
 -spec lookup(ne_binary(), ne_binary()) -> lookup_ret().
 lookup(Number, AccountId) when not is_binary(Number) ->
