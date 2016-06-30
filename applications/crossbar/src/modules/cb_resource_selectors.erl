@@ -194,7 +194,7 @@ validate(Context, ?NAME, SelectorName, ?RESOURCE, ResourceId) ->
 -spec set_selectors_db(cb_context:context()) -> cb_context:context().
 set_selectors_db(Context) ->
     case is_global_request(Context) of
-        'true' -> 
+        'true' ->
             {'ok', MasterAccountId} = kapps_util:get_master_account_id(),
             MasterSelectorsDb = kz_util:format_resource_selectors_db(MasterAccountId),
             cb_context:set_account_db(Context, MasterSelectorsDb);
@@ -380,7 +380,7 @@ do_delete_all_selectors(Db, Options, AccStats) ->
     Stats = case [ kz_json:get_ne_value(<<"id">>, R, []) || R <- SearchResult ] of
                 [] -> AccStats;
                 [[]] -> AccStats;
-                IDs -> 
+                IDs ->
                     NewStats = do_delete_selectors(Db, IDs, AccStats),
                     do_delete_all_selectors(Db, Options, NewStats)
             end,
@@ -446,7 +446,7 @@ maybe_send_db_change_notice(Db, Stats) ->
     case props:get_integer_value('success', Stats, 0) > 0
          andalso ?SUPPRESS_SRS_NOTICE
     of
-        'true' -> 
+        'true' ->
             _ = kz_util:spawn(fun() -> kzs_publish:publish_db(Db, 'edited') end),
             'ok';
         'false' -> 'ok'
