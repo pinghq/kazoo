@@ -18,7 +18,6 @@
 -export([unsolicited_endpoint_mwi_update/2]).
 -export([alpha_to_dialpad/1, ignore_early_media/1]).
 -export([correct_media_path/2]).
--export([lookup_callflow/1, lookup_callflow/2]).
 -export([handle_bridge_failure/2, handle_bridge_failure/3]).
 -export([send_default_response/2]).
 -export([get_sip_realm/2, get_sip_realm/3]).
