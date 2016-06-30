@@ -104,7 +104,6 @@ handle_manual(Data, Call) ->
 %%--------------------------------------------------------------------
 -spec handle_list(wh_json:object(), whapps_call:call()) -> 'ok'.
 handle_list(Data, Call) ->
-<<<<<<< HEAD
     CallerIdNumber = whapps_call:caller_id_number(Call),
     lager:debug("callerid number before this module: ~s ", [CallerIdNumber]),
 
