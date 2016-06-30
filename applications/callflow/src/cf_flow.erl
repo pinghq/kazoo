@@ -12,7 +12,7 @@
 
 
 -include("callflow.hrl").
--include_lib("kazoo/src/kz_json.hrl").
+-include_lib("kazoo/src/wh_json.hrl").
 
 -record(pattern, {
                   flow_id :: ne_binary(),
@@ -42,7 +42,7 @@ lookup(Number, AccountId) when not is_binary(Number) ->
 lookup(<<>>, _) ->
     {'error', 'invalid_number'};
 lookup(Number, AccountId) ->
-    case kz_cache:fetch_local(?CACHE_NAME, ?CF_FLOW_CACHE_KEY(Number, AccountId)) of
+    case kz_cache:fetch_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, AccountId)) of
         {'ok', FlowId} -> return_callflow_doc(FlowId, AccountId);
         {'error', 'not_found'} -> do_lookup(Number, AccountId)
     end.
@@ -81,7 +81,7 @@ cache_callflow_number(Number, AccountId, Flow) ->
     CacheOptions = [{'origin', [{'db', AccountDb, <<"callflow">>}]}
                    ,{'expires', ?MILLISECONDS_IN_HOUR}
                    ],
-    kz_cache:store_local(?CACHE_NAME, ?CF_FLOW_CACHE_KEY(Number, AccountId), kz_doc:id(Flow), CacheOptions),
+    kz_cache:store_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, AccountId), kz_doc:id(Flow), CacheOptions),
     {'ok', Flow, Number =:= ?NO_MATCH_CF}.
 
 %% only route to nomatch when Number is all digits and/or +
@@ -100,7 +100,7 @@ is_digit(_) -> 'false'.
 
 -spec fetch_patterns(ne_binary()) -> {'ok', patterns()} | {'error', 'not_found'}.
 fetch_patterns(AccountId)->
-    case kz_cache:fetch_local(?CACHE_NAME, ?CF_PATTERN_CACHE_KEY(AccountId)) of
+    case kz_cache:fetch_local(?CALLFLOW_CACHE, ?CF_PATTERN_CACHE_KEY(AccountId)) of
         {'ok', _Patterns}= OK -> OK;
         {'error', 'not_found'} -> load_patterns(AccountId)
     end.
@@ -142,7 +142,7 @@ compile_patterns(AccountId, [JObj | JObjs], Acc) ->
 cache_patterns(AccountId, Patterns) ->
     AccountDb = kz_util:format_account_db(AccountId),
     CacheOptions = [{'origin', [{'db', AccountDb, <<"callflow">>}]}],
-    kz_cache:store_local(?CACHE_NAME, ?CF_PATTERN_CACHE_KEY(AccountId), Patterns, CacheOptions),
+    kz_cache:store_local(?CALLFLOW_CACHE, ?CF_PATTERN_CACHE_KEY(AccountId), Patterns, CacheOptions),
     {'ok', Patterns}.
 
 -spec lookup_patterns(ne_binary(), ne_binary()) ->
