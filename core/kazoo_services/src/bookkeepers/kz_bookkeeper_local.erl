@@ -20,7 +20,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
-sync(_Items, _AccountId) -> 'ok'.
+sync(_Items, _AccountId) ->
+    io:format("Items ~p~n AccountId ~p~n", [kz_service_items:public_json(_Items), _AccountId]),
+    'ok'.
 
 %%--------------------------------------------------------------------
 %% @public

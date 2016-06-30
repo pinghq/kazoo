@@ -107,6 +107,9 @@
                      ,{'teletype_denied_emergency_bridge'
                        ,[{<<"notification">>, <<"denied_emergency_bridge">>}]
                       }
+                      ,{'teletype_service_added'
+                       ,[{<<"notification">>, <<"service_added">>}]
+                      }
                     ]).
 
 -define(RESTRICT_TO, ['cnam_requests'
@@ -135,6 +138,7 @@
                       ,'webhook_disabled'
                       ,'customer_update'
                       ,'pwd_recovery'
+                      ,'service_added'
                       %%,'new_fax'
                       %%,'fax_error'
                       %%,'skel'
