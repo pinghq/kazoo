@@ -12,7 +12,7 @@
 
 
 -include("callflow.hrl").
--include_lib("kazoo/src/wh_json.hrl").
+-include_lib("whistle/src/wh_json.hrl").
 
 -record(pattern, {
                   flow_id :: ne_binary(),
