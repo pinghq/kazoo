@@ -30,7 +30,7 @@
 %% lookup the callflow based on the requested number in the account
 %% @end
 %%-----------------------------------------------------------------------------
--type lookup_ret() :: {'ok', kz_json:object(), boolean()} | {'error', any()}.
+-type lookup_ret() :: {'ok', wh_json:object(), boolean()} | {'error', any()}.
 
 -spec lookup(kapps_call:call()) -> lookup_ret().
 lookup(Call) ->
@@ -38,11 +38,11 @@ lookup(Call) ->
 
 -spec lookup(ne_binary(), ne_binary()) -> lookup_ret().
 lookup(Number, AccountId) when not is_binary(Number) ->
-    lookup(kz_util:to_binary(Number), AccountId);
+    lookup(wh_util:to_binary(Number), AccountId);
 lookup(<<>>, _) ->
     {'error', 'invalid_number'};
 lookup(Number, AccountId) ->
-    case kz_cache:fetch_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, AccountId)) of
+    case wh_cache:fetch_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, AccountId)) of
         {'ok', FlowId} -> return_callflow_doc(FlowId, AccountId);
         {'error', 'not_found'} -> do_lookup(Number, AccountId)
     end.
@@ -51,44 +51,44 @@ return_callflow_doc(FlowId, AccountId) ->
     return_callflow_doc(FlowId, AccountId, []).
 
 return_callflow_doc(FlowId, AccountId, Props) ->
-    Db = kz_util:format_account_db(AccountId),
-    case kz_datamgr:open_cache_doc(Db, FlowId) of
+    Db = wh_util:format_account_db(AccountId),
+    case couch_mgr:open_cache_doc(Db, FlowId) of
         {'ok', Doc} ->
-            {'ok', kz_json:set_values(Props, Doc), FlowId =:= ?NO_MATCH_CF};
+            {'ok', wh_json:set_values(Props, Doc), FlowId =:= ?NO_MATCH_CF};
         Error -> Error
     end.
 
 do_lookup(Number, AccountId) ->
-    Db = kz_util:format_account_db(AccountId),
+    Db = wh_util:format_account_db(AccountId),
     lager:info("searching for callflow in ~s to satisfy '~s'", [Db, Number]),
     Options = [{'key', Number}, 'include_docs'],
-    case kz_datamgr:get_results(Db, ?LIST_BY_NUMBER, Options) of
+    case couch_mgr:get_results(Db, ?LIST_BY_NUMBER, Options) of
         {'error', _}=E -> E;
         {'ok', []} when Number =/= ?NO_MATCH_CF ->
             lookup_patterns(Number, AccountId);
         {'ok', []} -> {'error', 'not_found'};
         {'ok', [JObj]} ->
-            Flow = kz_json:get_value(<<"doc">>, JObj),
+            Flow = wh_json:get_value(<<"doc">>, JObj),
             cache_callflow_number(Number, AccountId, Flow);
         {'ok', [JObj | _Rest]} ->
             lager:info("lookup resulted in more than one result, using the first"),
-            Flow = kz_json:get_value(<<"doc">>, JObj),
+            Flow = wh_json:get_value(<<"doc">>, JObj),
             cache_callflow_number(Number, AccountId, Flow)
     end.
 
 cache_callflow_number(Number, AccountId, Flow) ->
-    AccountDb = kz_util:format_account_db(AccountId),
+    AccountDb = wh_util:format_account_db(AccountId),
     CacheOptions = [{'origin', [{'db', AccountDb, <<"callflow">>}]}
                    ,{'expires', ?MILLISECONDS_IN_HOUR}
                    ],
-    kz_cache:store_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, AccountId), kz_doc:id(Flow), CacheOptions),
+    wh_cache:store_local(?CALLFLOW_CACHE, ?CF_FLOW_CACHE_KEY(Number, AccountId), wh_doc:id(Flow), CacheOptions),
     {'ok', Flow, Number =:= ?NO_MATCH_CF}.
 
 %% only route to nomatch when Number is all digits and/or +
 maybe_use_nomatch(<<"+", Number/binary>>, AccountId) ->
     maybe_use_nomatch(Number, AccountId);
 maybe_use_nomatch(Number, AccountId) ->
-    case lists:all(fun is_digit/1, kz_util:to_list(Number)) of
+    case lists:all(fun is_digit/1, wh_util:to_list(Number)) of
         'true' -> lookup(?NO_MATCH_CF, AccountId);
         'false' ->
             lager:info("can't use no_match: number not all digits: ~s", [Number]),
@@ -100,15 +100,15 @@ is_digit(_) -> 'false'.
 
 -spec fetch_patterns(ne_binary()) -> {'ok', patterns()} | {'error', 'not_found'}.
 fetch_patterns(AccountId)->
-    case kz_cache:fetch_local(?CALLFLOW_CACHE, ?CF_PATTERN_CACHE_KEY(AccountId)) of
+    case wh_cache:fetch_local(?CALLFLOW_CACHE, ?CF_PATTERN_CACHE_KEY(AccountId)) of
         {'ok', _Patterns}= OK -> OK;
         {'error', 'not_found'} -> load_patterns(AccountId)
     end.
 
 -spec load_patterns(ne_binary()) -> {'ok', patterns()} | {'error', 'not_found'}.
 load_patterns(AccountId) ->
-    Db = kz_util:format_account_db(AccountId),
-    case kz_datamgr:get_results(Db, ?LIST_BY_PATTERN, ['include_docs']) of
+    Db = wh_util:format_account_db(AccountId),
+    case couch_mgr:get_results(Db, ?LIST_BY_PATTERN, ['include_docs']) of
         {'ok', []} -> {'error', 'not_found'};
         {'ok', JObjs} -> compile_patterns(AccountId, JObjs);
         {'error', _}=_E ->
@@ -122,8 +122,8 @@ compile_patterns(AccountId, JObjs) ->
 compile_patterns(AccountId, [], Acc) ->
     cache_patterns(AccountId, Acc);
 compile_patterns(AccountId, [JObj | JObjs], Acc) ->
-    Regex = kz_json:get_value(<<"key">>, JObj),
-    FlowId = kz_doc:id(JObj),
+    Regex = wh_json:get_value(<<"key">>, JObj),
+    FlowId = wh_doc:id(JObj),
     case re:compile(Regex) of
         {'ok', {re_pattern, Groups, _, _, _} = MP}
           when Groups =:= 0 ->
@@ -140,13 +140,13 @@ compile_patterns(AccountId, [JObj | JObjs], Acc) ->
 
 -spec cache_patterns(ne_binary(), patterns()) -> {'ok', patterns()}.
 cache_patterns(AccountId, Patterns) ->
-    AccountDb = kz_util:format_account_db(AccountId),
+    AccountDb = wh_util:format_account_db(AccountId),
     CacheOptions = [{'origin', [{'db', AccountDb, <<"callflow">>}]}],
-    kz_cache:store_local(?CALLFLOW_CACHE, ?CF_PATTERN_CACHE_KEY(AccountId), Patterns, CacheOptions),
+    wh_cache:store_local(?CALLFLOW_CACHE, ?CF_PATTERN_CACHE_KEY(AccountId), Patterns, CacheOptions),
     {'ok', Patterns}.
 
 -spec lookup_patterns(ne_binary(), ne_binary()) ->
-                                      {'ok', {kz_json:object(), api_binary()}} |
+                                      {'ok', {wh_json:object(), api_binary()}} |
                                       {'error', any()}.
 lookup_patterns(Number, AccountId) ->
     case fetch_patterns(AccountId) of
@@ -166,12 +166,12 @@ lookup_callflow_patterns(Patterns, Number, AccountId) ->
         {Match, #pattern{flow_id=FlowId}=Pattern} ->
             NameMap = get_captured_names(Number, Pattern),
             Props = [{<<"capture_group">>, Match}
-                     ,{<<"capture_groups">>, kz_json:from_list(NameMap)}
+                     ,{<<"capture_groups">>, wh_json:from_list(NameMap)}
                     ],
             return_callflow_doc(FlowId, AccountId, Props)
     end.
 
--spec get_captured_names(ne_binary(), pattern()) -> kz_proplist().
+-spec get_captured_names(ne_binary(), pattern()) -> wh_proplist().
 get_captured_names(_Number, #pattern{names=[]}) -> [];
 get_captured_names(Number, #pattern{regex=Regex, names=Names}) ->
     case re:run(Number, Regex, [{'capture', 'all_names', 'binary'}]) of
