@@ -13,6 +13,6 @@
        ).
 
 -define(WSD_ENABLED, kapps_config:get_is_true(?CONFIG_CAT, <<"webseq_enabled">>, 'false')).
-	   
+
 -define(KONAMI_HRL, 'true').
 -endif.
